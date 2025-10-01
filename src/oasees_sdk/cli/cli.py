@@ -21,6 +21,7 @@ import re
 from .commands.mlops import mlops_commands
 from .commands.telemetry import telemetry_commands
 from .commands.display_banner import display_banner
+from .commands.update import update
 
 
 def get_ip():
@@ -52,6 +53,7 @@ def cli(ctx):
 
 cli.add_command(mlops_commands)
 cli.add_command(telemetry_commands)
+cli.add_command(update)
 # cli.add_command(display_banner)
 
 # @click.option('--price', required=False, type=float, default=0, help="")
@@ -438,9 +440,12 @@ def process_yaml_files(output_dir):
                 
 
                 oasees_ui_label = annotations.get('oasees.ui')
+                oasees_action_label = annotations.get('oasees.action')
                 
                 if oasees_ui_label:
                     metadata['labels']['oasees-ui'] = 'true'
+                if oasees_action_label:
+                    metadata['labels']['oasees-action'] = 'true'
 
                 
                 # Handle nodeSelector
@@ -464,6 +469,9 @@ def process_yaml_files(output_dir):
                 spec['template']['metadata']['labels']['component'] ='oasees-app'
                 if oasees_ui_label:
                     spec['template']['metadata']['labels']['oasees-ui'] = 'true'
+
+                if oasees_action_label:
+                    spec['template']['metadata']['labels']['oasees-action'] = 'true'
                     
                 if sensor_value:
                     if 'spec' not in doc:
