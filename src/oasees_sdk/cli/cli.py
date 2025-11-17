@@ -411,12 +411,34 @@ def convert_app(compose_file, output_dir):
     os.makedirs(output_dir)
     
     print("Converting Docker Compose using Kompose...")
-    subprocess.run(["kompose", "convert", "-f", compose_file, "-o", output_dir], check=True)
+    result = subprocess.run(
+        ["kompose", "convert", "-f", compose_file, "-o", output_dir, "--volumes", "hostPath"],
+        capture_output=True,
+        text=True
+    )
+    
+    # Extract skipped volumes from stderr
+    skipped_volumes = []
+    if result.stderr:
+        for line in result.stderr.split('\n'):
+            if 'Skip file in path' in line:
+                # Extract path and strip whitespace
+                path = line.split('Skip file in path')[-1].strip()
+                if path:
+                    skipped_volumes.append(path)
+    
+    skipped_volumes = list(set(skipped_volumes))  # Remove duplicates
+    
+    # if skipped_volumes:
+    #     print(f"Found {len(skipped_volumes)} skipped volumes: {skipped_volumes}")
+    
+    process_yaml_files(output_dir, skipped_volumes)
 
-    process_yaml_files(output_dir)
-
-def process_yaml_files(output_dir):
+def process_yaml_files(output_dir, skipped_volumes=None):
     """Process generated YAML files to add nodeSelectors and other modifications"""
+    if skipped_volumes is None:
+        skipped_volumes = []
+    
     yaml_files = list(Path(output_dir).glob("*.yaml")) + list(Path(output_dir).glob("*.yml"))
     
     for yaml_file in yaml_files:
@@ -438,7 +460,6 @@ def process_yaml_files(output_dir):
                 metadata = doc.get('metadata', {})
                 annotations = metadata.get('annotations', {})
                 
-
                 oasees_ui_label = annotations.get('oasees.ui')
                 oasees_action_label = annotations.get('oasees.action')
                 
@@ -446,7 +467,6 @@ def process_yaml_files(output_dir):
                     metadata['labels']['oasees-ui'] = 'true'
                 if oasees_action_label:
                     metadata['labels']['oasees-action'] = 'true'
-
                 
                 # Handle nodeSelector
                 node_selector_value = annotations.get('oasees.device')
@@ -466,13 +486,13 @@ def process_yaml_files(output_dir):
                 # Handle sensor resources
                 sensor_value = annotations.get('oasees.sensor')
                 spec = doc.get('spec', {})
-                spec['template']['metadata']['labels']['component'] ='oasees-app'
+                spec['template']['metadata']['labels']['component'] = 'oasees-app'
                 if oasees_ui_label:
                     spec['template']['metadata']['labels']['oasees-ui'] = 'true'
 
                 if oasees_action_label:
                     spec['template']['metadata']['labels']['oasees-action'] = 'true'
-                    
+
                 if sensor_value:
                     if 'spec' not in doc:
                         doc['spec'] = {}
@@ -486,7 +506,8 @@ def process_yaml_files(output_dir):
                     resource_map = {
                         'sound': {'oasees.dev/snd': 1},
                         'video': {'oasees.dev/video0': 1},
-                        'bluetooth': {'oasees.dev/hci0': 1}
+                        'bluetooth': {'oasees.dev/hci0': 1},
+                        'gpu': {'nvidia.com/gpu': 1},
                     }
                     
                     if sensor_value in resource_map:
@@ -494,14 +515,61 @@ def process_yaml_files(output_dir):
                             'limits': resource_map[sensor_value]
                         }
                         modified = True
+                
+                # Add skipped volumes if this deployment has existing volumes
+                if skipped_volumes and 'spec' in doc and 'template' in doc['spec'] and 'spec' in doc['spec']['template']:
+                    template_spec = doc['spec']['template']['spec']
+                    
+                    # Only add if deployment already has volumes
+                    if 'volumes' in template_spec and template_spec['volumes']:
+                        service_name = metadata.get('name', '')
+                        
+                        # Find highest hostpath number
+                        max_num = 0
+                        for vol in template_spec['volumes']:
+                            vol_name = vol.get('name', '')
+                            if vol_name.startswith(f"{service_name}-hostpath"):
+                                try:
+                                    num = int(vol_name.replace(f"{service_name}-hostpath", ""))
+                                    max_num = max(max_num, num)
+                                except ValueError:
+                                    pass
+                        
+                        next_num = max_num + 1
+                        
+                        # Add skipped volumes
+                        for volume_path in skipped_volumes:
+                            volume_name = f"{service_name}-hostpath{next_num}"
+                            
+                            # Add volumeMount
+                            if 'containers' in template_spec and template_spec['containers']:
+                                if 'volumeMounts' not in template_spec['containers'][0]:
+                                    template_spec['containers'][0]['volumeMounts'] = []
+                                
+                                template_spec['containers'][0]['volumeMounts'].append({
+                                    'mountPath': volume_path,
+                                    'name': volume_name,
+                                    'readOnly': True
+                                })
+                            
+                            # Add volume
+                            template_spec['volumes'].append({
+                                'hostPath': {'path': volume_path},
+                                'name': volume_name
+                            })
+                            
+                            next_num += 1
+                            modified = True
+                        
+                        # if modified:
+                            # print(f"  Added {len(skipped_volumes)} skipped volumes to {service_name}")
             
             elif kind == 'Service':
                 metadata = doc.get('metadata', {})
                 annotations = doc.get('metadata', {}).get('annotations', {})
                 oasees_ui_label = annotations.get('oasees.ui')
-                metadata['labels']['component'] ='oasees-app'
+                metadata['labels']['component'] = 'oasees-app'
                 if oasees_ui_label:
-                    
                     metadata['labels']['oasees-ui'] = 'true'
                     oasees_ui_port = annotations.get('oasees.ui.port')
                     metadata['labels']['oasees-ui-port'] = oasees_ui_port
@@ -538,8 +606,6 @@ def process_yaml_files(output_dir):
                             continue
                     
                     modified = True
-
-
         
         if modified:
             with open(yaml_file, 'w') as f:
@@ -592,69 +658,69 @@ def delete_app(folder):
     else:
         click.secho("Some manifests failed to delete.", fg="red")
 
-# @cli.command()
-# def enable_gpu_operator():
-#     '''Enables the GPU Operator on the cluster'''
+@cli.command()
+def enable_gpu_operator():
+    '''Enables the GPU Operator on the cluster'''
 
-#     click.secho("Enabling GPU Operator...", fg="yellow")
+    click.secho("Enabling GPU Operator...", fg="yellow")
 
-#     command = [
-#         "helm", "install", "gpu-operator", "-n", "gpu-operator", "--create-namespace", "nvidia/gpu-operator",
-#         "--version=v25.3.0",
-#         "--set", "toolkit.env[0].name=CONTAINERD_CONFIG",
-#         "--set", "toolkit.env[0].value=/var/lib/rancher/k3s/agent/etc/containerd/config.toml",
-#         "--set", "toolkit.env[1].name=CONTAINERD_SOCKET",
-#         "--set", "toolkit.env[1].value=/run/k3s/containerd/containerd.sock",
-#         "--set", "toolkit.env[2].name=CONTAINERD_RUNTIME_CLASS",
-#         "--set", "toolkit.env[2].value=nvidia",
-#         "--set", "toolkit.env[3].name=CONTAINERD_SET_AS_DEFAULT",
-#         "--set-string", "toolkit.env[3].value=true"
-#     ]
+    command = [
+        "helm", "install", "gpu-operator", "-n", "gpu-operator", "--create-namespace", "nvidia/gpu-operator",
+        "--version=v25.3.0",
+        "--set", "toolkit.env[0].name=CONTAINERD_CONFIG",
+        "--set", "toolkit.env[0].value=/var/lib/rancher/k3s/agent/etc/containerd/config.toml",
+        "--set", "toolkit.env[1].name=CONTAINERD_SOCKET",
+        "--set", "toolkit.env[1].value=/run/k3s/containerd/containerd.sock",
+        "--set", "toolkit.env[2].name=CONTAINERD_RUNTIME_CLASS",
+        "--set", "toolkit.env[2].value=nvidia",
+        "--set", "toolkit.env[3].name=CONTAINERD_SET_AS_DEFAULT",
+        "--set-string", "toolkit.env[3].value=true"
+    ]
 
-#     try:
-#         result = subprocess.run(command, check=True, text=True)
-#         click.secho("GPU Operator enabled successfully!", fg="green")
-#     except subprocess.CalledProcessError as e:
-#         click.secho(f"Failed to enable GPU Operator: {e}", fg="red")
-#         sys.exit(1)
+    try:
+        result = subprocess.run(command, check=True, text=True)
+        click.secho("GPU Operator enabled successfully!", fg="green")
+    except subprocess.CalledProcessError as e:
+        click.secho(f"Failed to enable GPU Operator: {e}", fg="red")
+        sys.exit(1)
 
-# @cli.command()
-# def mlops_add_node():
-#     '''Install the components needed to execute ML workloads on the specified node.'''
-#     node_name = ''
-#     mount_path = ''
-#     gpu_enabled = 0
-#     node_infos = json.loads(get_nodes())
-#     nodes = []
+@cli.command()
+def mlops_add_node():
+    '''Install the components needed to execute ML workloads on the specified node.'''
+    node_name = ''
+    mount_path = ''
+    gpu_enabled = 0
+    node_infos = json.loads(get_nodes())
+    nodes = []
 
-#     click.echo("Available nodes:")
-#     for idx, node_info in enumerate(node_infos['items']):
-#         name = node_info['metadata']['name']
-#         gpu = any(re.match(r'nvidia.*',label) for label in node_info['metadata']['labels'])
+    click.echo("Available nodes:")
+    for idx, node_info in enumerate(node_infos['items']):
+        name = node_info['metadata']['name']
+        gpu = any(re.match(r'nvidia.*',label) for label in node_info['metadata']['labels'])
 
-#         click.echo(f"{idx+1}. {name} (GPU: {'Yes' if gpu else 'No'})")
-#         nodes.append({'name': name, 'gpu': gpu})
+        click.echo(f"{idx+1}. {name} (GPU: {'Yes' if gpu else 'No'})")
+        nodes.append({'name': name, 'gpu': gpu})
 
-#     click.echo('\n')
+    click.echo('\n')
 
-#     selection = int(click.prompt("Choose the node you want to use for training", type=click.Choice([str(i+1) for i in range(len(nodes))]), show_choices=False)) - 1
-#     node_name = nodes[selection]['name']
+    selection = int(click.prompt("Choose the node you want to use for training", type=click.Choice([str(i+1) for i in range(len(nodes))]), show_choices=False)) - 1
+    node_name = nodes[selection]['name']
 
-#     if(nodes[selection]['gpu']):
-#         gpu_enabled = 1 if click.confirm("Would you like to enable GPU support for this node?", default=True) else 0
+    if(nodes[selection]['gpu']):
+        gpu_enabled = 1 if click.confirm("Would you like to enable GPU support for this node?", default=True) else 0
 
-#     click.echo()
-#     click.secho(f'The current MLOPs image requires the designated node ({node_name}) to have a venv with all the required ML libraries already set up.', fg="yellow")
-#     mount_path = click.prompt("Enter the path your venv is in (e.g. /home/<username>/venv)", type=str)
+    click.echo()
+    click.secho(f'The current MLOPs image requires the designated node ({node_name}) to have a venv with all the required ML libraries already set up.', fg="yellow")
+    mount_path = click.prompt("Enter the path your venv is in (e.g. /home/<username>/venv)", type=str)
 
-#     command = [
-#         "helm", "upgrade" , "--install", f"training-worker-{node_name}", "oasees-charts/training-worker", "--set", f"nodeName={node_name}", "--set", f"mountPath={mount_path}", "--set", f"gpu={gpu_enabled}"
-#     ]
+    command = [
+        "helm", "upgrade" , "--install", f"training-worker-{node_name}", "oasees-charts/training-worker", "--set", f"nodeName={node_name}", "--set", f"mountPath={mount_path}", "--set", f"gpu={gpu_enabled}"
+    ]
 
-#     try:
-#         subprocess.run(command, check=True, text=True)
-#         click.secho(f"Training components deployed successfully on {node_name}!", fg="green")
-#     except subprocess.CalledProcessError as e:
-#         click.secho(f"Error during the deployment of the training components.", fg="red")
-#         sys.exit(1)
+    try:
+        subprocess.run(command, check=True, text=True)
+        click.secho(f"Training components deployed successfully on {node_name}!", fg="green")
+    except subprocess.CalledProcessError as e:
+        click.secho(f"Error during the deployment of the training components.", fg="red")
+        sys.exit(1)
 
