@@ -285,7 +285,8 @@ import io
 from io import BytesIO
 import requests
 import cv2
-from flask import Flask, request, jsonify 
+import os
+from flask import Flask, request, jsonify, abort, make_response
 from exported import Model
 
 
@@ -295,6 +296,16 @@ model = torch.load('model.pth',map_location=device)
 model.eval()
 
 app = Flask(__name__)
+
+def image_size():
+    """(height, width) the model takes: the X-Image-Size header (32 or 32x48), else the IMAGE_SIZE
+    environment variable, else 28."""
+    text = request.headers.get('X-Image-Size') or os.environ.get('IMAGE_SIZE', '28')
+    try:
+        height, _, width = text.lower().partition('x')
+        return int(height), int(width or height)
+    except ValueError:
+        abort(make_response(jsonify({'error': f"Invalid image size '{text}', expected e.g. 28 or 28x28"}), 400))
 
 @app.route('/status', methods=['GET'])
 def status():
@@ -316,9 +327,12 @@ def predict():
         image_stream.seek(0)
         image = np.frombuffer(image_stream.read(), np.uint8)
         image = cv2.imdecode(image, cv2.IMREAD_GRAYSCALE)  # Read as grayscale
+        if image is None:
+            return jsonify({'error': 'The file is not an image'}), 400
 
-        # Resize image to 28x28 pixels
-        image = cv2.resize(image, (28, 28))
+        # Resize the image to the size the model takes (28x28 unless set otherwise)
+        height, width = image_size()
+        image = cv2.resize(image, (width, height))
 
         # Convert image to PyTorch tensor
         image = torch.tensor(image, dtype=torch.float32).unsqueeze(0).unsqueeze(0)  # Add batch and channel dimensions
@@ -340,8 +354,8 @@ def predict_numpy():
 
     image = np.array(data['image'], dtype=np.float32)
 
-    if image.shape != (28, 28):
-        return jsonify({'error': 'Invalid image shape, expected (28, 28)'}), 400
+    if image.shape != image_size():
+        return jsonify({'error': f'Invalid image shape, expected {image_size()}'}), 400
 
     image = torch.tensor(image, dtype=torch.float32).unsqueeze(0).unsqueeze(0)
 
@@ -499,7 +513,8 @@ import io
 from io import BytesIO
 import requests
 import cv2
-from flask import Flask, request, jsonify 
+import os
+from flask import Flask, request, jsonify, abort, make_response
 import FlModel
 
 
@@ -509,6 +524,16 @@ model.load_state_dict(torch.load('model.pth', map_location=device))
 model.eval()
 
 app = Flask(__name__)
+
+def image_size():
+    """(height, width) the model takes: the X-Image-Size header (32 or 32x48), else the IMAGE_SIZE
+    environment variable, else 28."""
+    text = request.headers.get('X-Image-Size') or os.environ.get('IMAGE_SIZE', '28')
+    try:
+        height, _, width = text.lower().partition('x')
+        return int(height), int(width or height)
+    except ValueError:
+        abort(make_response(jsonify({'error': f"Invalid image size '{text}', expected e.g. 28 or 28x28"}), 400))
 
 @app.route('/status', methods=['GET'])
 def status():
@@ -530,9 +555,12 @@ def predict():
         image_stream.seek(0)
         image = np.frombuffer(image_stream.read(), np.uint8)
         image = cv2.imdecode(image, cv2.IMREAD_GRAYSCALE)  # Read as grayscale
+        if image is None:
+            return jsonify({'error': 'The file is not an image'}), 400
 
-        # Resize image to 28x28 pixels
-        image = cv2.resize(image, (28, 28))
+        # Resize the image to the size the model takes (28x28 unless set otherwise)
+        height, width = image_size()
+        image = cv2.resize(image, (width, height))
 
         # Convert image to PyTorch tensor
         image = torch.tensor(image, dtype=torch.float32).unsqueeze(0).unsqueeze(0)  # Add batch and channel dimensions
@@ -555,8 +583,8 @@ def predict_numpy():
 
     image = np.array(data['image'], dtype=np.float32)
 
-    if image.shape != (28, 28):
-        return jsonify({'error': 'Invalid image shape, expected (28, 28)'}), 400
+    if image.shape != image_size():
+        return jsonify({'error': f'Invalid image shape, expected {image_size()}'}), 400
 
     image = torch.tensor(image, dtype=torch.float32).unsqueeze(0).unsqueeze(0)
 

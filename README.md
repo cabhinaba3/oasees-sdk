@@ -255,6 +255,7 @@ Commands to support federated learning workflows, including data preparation, pi
         ```bash
         oasees-sdk mlops deploy-model --project-name=example1 --model=example1_2025-07-24_06-16-15.safetensors
         ```
+    * **Image size**: the inference service takes single-channel (grayscale) images of 28x28 pixels by default. Send an `X-Image-Size` header (`32` or `32x48`, height by width) to use another size, or set `IMAGE_SIZE` in the service's environment to change the default.
 
 #### <ins>Uninstalling</ins>
 
