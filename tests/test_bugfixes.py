@@ -57,8 +57,13 @@ def test_assets_to_ipfs_closes_every_file(tmp_path):
 
     resp = mock.Mock()
     resp.iter_lines.return_value = [json.dumps({"Name": "", "Hash": "QmDir"}).encode()]
+
+    def post(url, headers, data, stream):
+        data.read()      # a real client streams the body; that is when the files get opened
+        return resp
+
     with mock.patch("builtins.open", tracking_open), \
-         mock.patch.object(cluster_ipfs_upload.requests, "post", return_value=resp):
+         mock.patch.object(cluster_ipfs_upload.requests, "post", post):
         assert cluster_ipfs_upload.assets_to_ipfs("http://x", str(tmp_path)) == "QmDir"
 
     assert len(opened) == 2 and all(f.closed for f in opened)
