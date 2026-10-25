@@ -23,6 +23,18 @@ def sanitize_k8s_name(name):
     sanitized = re.sub(r'^-+|-+$', '', sanitized)
     return sanitized
 
+# IPFS CIDv0 ("Qm...") or CIDv1 in base32 ("bafy...")
+CID_RE = re.compile(r'^(Qm[1-9A-HJ-NP-Za-km-z]{44}|b[a-z2-7]{58,})$')
+
+def client_data_source(kind, name):
+    """Return (path inside the FL client pod, is_cid) for a --data-files entry.
+
+    A CID is downloaded into /data when the pod starts. Anything else is a file that
+    already sits in /var/tmp on the node, so private data never has to leave its device."""
+    if CID_RE.match(name):
+        return f"/data/{kind}.npy", True
+    return f"/var/tmp/{name}", False
+
 
 
 
@@ -294,7 +306,7 @@ def get_ipfs_api():
 @mlops_commands.command()
 @click.option('--project-name', required=True, help='Project name for the FL system')
 @click.option('--data-files', required=True, 
-              help='Comma-separated list of data:target:node triplets (data1.npy,target1.npy,node1:data2.npy,target2.npy,node2:...)')
+              help='Colon-separated list of data,target,node triplets (data1.npy,target1.npy,node1:data2.npy,target2.npy,node2:...). A file name is read from /var/tmp on that node; an IPFS CID is downloaded by the client pod.')
 @click.option('--min-clients', type=int, help='Minimum number of clients (default: 70% of the data file pairs, rounded down)')
 @click.option('--num-rounds', type=int, default=5, help='Number of rounds (default: 5)')
 @click.option('--epochs', type=int, default=5, help='Number of epochs per client (default: 5)')
@@ -458,9 +470,19 @@ spec:
     clients_yaml_content = ""
     for i, (data_file, target_file, node_name) in enumerate(zip(data_array, target_array, node_array)):
         client_pod_name = f"fl-client-{project_name}-{i}-{timestamp}"
-        data_path = f"/var/tmp/{data_file}"
-        target_path = f"/var/tmp/{target_file}"
-        
+        data_path, data_is_cid = client_data_source("data", data_file)
+        target_path, target_is_cid = client_data_source("target", target_file)
+
+        # CIDs are fetched in the pod; plain file names are mounted from the node.
+        fetch_cmds, host_mounts, host_volumes = "", "", ""
+        for kind, name, path, is_cid in (("data", data_file, data_path, data_is_cid),
+                                         ("target", target_file, target_path, target_is_cid)):
+            if is_cid:
+                fetch_cmds += f"ipfs --api=/ip4/${{IPFS_IP}}/tcp/5001/http get {name} -o {path} &&\n      "
+            else:
+                host_mounts += f"    - name: {kind}-files\n      mountPath: {path}\n"
+                host_volumes += f"  - name: {kind}-files\n    hostPath:\n      path: {path}\n      type: File\n"
+
         clients_yaml_content += f"""---
 # FL Client Pod {i} (on {node_name} node)
 apiVersion: v1
@@ -504,7 +526,7 @@ spec:
     - |
       HASH=$(ipfs --api=/ip4/${{IPFS_IP}}/tcp/5001/http files stat --hash /oasees-ml-ops/projects/ml/${{PROJECT_NAME}}) &&
       ipfs --api=/ip4/${{IPFS_IP}}/tcp/5001/http get ${{HASH}} -o ${{PROJECT_NAME}} &&
-      sleep 1 &&
+      {fetch_cmds}sleep 1 &&
       python $PROJECT_NAME/${{PROJECT_NAME}}_client.py \\
         --SERVER_ADDRESS $SERVER_ADDRESS \\
         --DATA_PATH $DATA_PATH \\
@@ -512,20 +534,12 @@ spec:
         --EPOCHS $EPOCHS --CLIENT_ID $CLIENT_ID
 
     volumeMounts:
-    - name: data-files
-      mountPath: {data_path}
-    - name: target-files
-      mountPath: {target_path}
-  volumes:
-  - name: data-files
-    hostPath:
-      path: {data_path}
-      type: File
-  - name: target-files
-    hostPath:
-      path: {target_path}
-      type: File
-"""
+    - name: scratch
+      mountPath: /data
+{host_mounts}  volumes:
+  - name: scratch
+    emptyDir: {{}}
+{host_volumes}"""
 
     server_temp_file_path = None
     clients_temp_file_path = None
