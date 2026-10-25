@@ -73,6 +73,7 @@ import flwr as fl
 from typing import List, Tuple
 from flwr.common import Metrics
 from safetensors.numpy import save_file
+import sys
 import warnings
 import logging
 import argparse
@@ -157,9 +158,8 @@ class ServerStrategy(fl.server.strategy.FedAvg):
                 if "train_loss" in client_metrics:
                     print(f"  - Training loss: {client_metrics['train_loss']:.4f}")
         
-        if server_round == NUM_ROUNDS and parameters is not None:
-            self.final_parameters = parameters
-            self._save_parameters(parameters)
+        if parameters is not None:
+            self.final_parameters = parameters  # latest good round; saved once training ends
         
         return parameters, metrics
 
@@ -203,6 +203,11 @@ def main():
         config=fl.server.ServerConfig(num_rounds=NUM_ROUNDS, round_timeout=ROUND_TIMEOUT),
         strategy=strategy,
     )
+    # Saved here, once the server has stopped. An error raised inside aggregate_fit leaves the
+    # gRPC threads running and the process hanging; an error raised here ends the process.
+    if strategy.final_parameters is None:
+        sys.exit("No model saved: no client returned results in any round.")
+    strategy._save_parameters(strategy.final_parameters)
 
 if __name__ == "__main__":
     main()
