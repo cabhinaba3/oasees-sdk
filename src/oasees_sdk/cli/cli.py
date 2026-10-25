@@ -680,7 +680,10 @@ def enable_gpu_operator():
         sys.exit(1)
 
 @cli.command()
-def mlops_add_node():
+@click.option('--node', 'node_arg', help="Name of the node to use for training. Asked for if left out.")
+@click.option('--gpu/--no-gpu', 'gpu_arg', default=None, help="Enable GPU support on a node that has a GPU. Asked for if left out.")
+@click.option('--venv-path', help="Path of the venv on the node, with the ML libraries installed. Asked for if left out.")
+def mlops_add_node(node_arg, gpu_arg, venv_path):
     '''Install the components needed to execute ML workloads on the specified node.'''
     node_name = ''
     mount_path = ''
@@ -688,25 +691,39 @@ def mlops_add_node():
     node_infos = json.loads(get_nodes())
     nodes = []
 
-    click.echo("Available nodes:")
+    if not node_arg:
+        click.echo("Available nodes:")
     for idx, node_info in enumerate(node_infos['items']):
         name = node_info['metadata']['name']
         gpu = any(re.match(r'nvidia.*',label) for label in node_info['metadata']['labels'])
 
-        click.echo(f"{idx+1}. {name} (GPU: {'Yes' if gpu else 'No'})")
+        if not node_arg:
+            click.echo(f"{idx+1}. {name} (GPU: {'Yes' if gpu else 'No'})")
         nodes.append({'name': name, 'gpu': gpu})
 
-    click.echo('\n')
-
-    selection = int(click.prompt("Choose the node you want to use for training", type=click.Choice([str(i+1) for i in range(len(nodes))]), show_choices=False)) - 1
+    if node_arg:
+        matches = [i for i, n in enumerate(nodes) if n['name'] == node_arg]
+        if not matches:
+            raise click.ClickException(f"Node '{node_arg}' not found. Available: {', '.join(n['name'] for n in nodes)}")
+        selection = matches[0]
+    else:
+        click.echo('\n')
+        selection = int(click.prompt("Choose the node you want to use for training", type=click.Choice([str(i+1) for i in range(len(nodes))]), show_choices=False)) - 1
     node_name = nodes[selection]['name']
 
+    if gpu_arg and not nodes[selection]['gpu']:
+        raise click.ClickException(f"Node '{node_name}' has no GPU, so --gpu can't be used.")
     if(nodes[selection]['gpu']):
-        gpu_enabled = 1 if click.confirm("Would you like to enable GPU support for this node?", default=True) else 0
+        if gpu_arg is None:
+            gpu_enabled = 1 if click.confirm("Would you like to enable GPU support for this node?", default=True) else 0
+        else:
+            gpu_enabled = 1 if gpu_arg else 0
 
-    click.echo()
-    click.secho(f'The current MLOPs image requires the designated node ({node_name}) to have a venv with all the required ML libraries already set up.', fg="yellow")
-    mount_path = click.prompt("Enter the path your venv is in (e.g. /home/<username>/venv)", type=str)
+    if not venv_path:
+        click.echo()
+        click.secho(f'The current MLOPs image requires the designated node ({node_name}) to have a venv with all the required ML libraries already set up.', fg="yellow")
+        venv_path = click.prompt("Enter the path your venv is in (e.g. /home/<username>/venv)", type=str)
+    mount_path = venv_path
 
     command = [
         "helm", "upgrade" , "--install", f"training-worker-{node_name}", "oasees-charts/training-worker", "--set", f"nodeName={node_name}", "--set", f"mountPath={mount_path}", "--set", f"gpu={gpu_enabled}"

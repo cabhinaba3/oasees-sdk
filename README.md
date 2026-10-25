@@ -220,6 +220,17 @@ Commands to support federated learning workflows, including data preparation, pi
         oasees-sdk mlops fl-data-nodes
         ```
 
+* #### `oasees-sdk mlops-add-node`
+    * **Description**: Installs the components needed to run ML workloads on a node. Anything left out is asked for interactively.
+    * **Arguments**:
+        * `--node TEXT` (Optional): The node to use for training.
+        * `--gpu / --no-gpu` (Optional): Enable GPU support. Only valid for a node that has a GPU.
+        * `--venv-path TEXT` (Optional): The path of the venv on the node, with the ML libraries installed.
+    * **Usage**:
+        ```bash
+        oasees-sdk mlops-add-node --node device1 --no-gpu --venv-path /home/user/venv
+        ```
+
 * #### `oasees-sdk mlops start-fl`
     * **Description**: Starts a federated learning process with a server and clients.
     * **Arguments**:
