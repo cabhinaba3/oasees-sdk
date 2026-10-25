@@ -292,7 +292,12 @@ from exported import Model
 
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-model = torch.load('model.pth',map_location=device)
+# model.pth is a whole pickled model saved by the project's own training notebook. torch 2.6 and later
+# refuse to unpickle that by default, so ask for it explicitly; torch before 1.13 has no weights_only.
+try:
+    model = torch.load('model.pth', map_location=device, weights_only=False)
+except TypeError:
+    model = torch.load('model.pth', map_location=device)
 model.eval()
 
 app = Flask(__name__)

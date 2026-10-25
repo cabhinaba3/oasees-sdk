@@ -106,3 +106,28 @@ def test_a_file_that_is_not_an_image_is_a_400_not_a_crash(template):
     cv2.imdecode.return_value = None          # what OpenCV returns for data it can't decode
     response = _upload(client)
     assert response.status_code == 400 and response.get_json() == {"error": "The file is not an image"}
+
+
+def test_deploy_ml_asks_for_a_full_model_load():
+    # torch >= 2.6 defaults to weights_only=True and refuses a pickled nn.Module (checked on torch 2.7.1)
+    assert "torch.load('model.pth', map_location=device, weights_only=False)" in util_files.deploy_ml
+
+
+def test_deploy_ml_falls_back_on_torch_without_weights_only():
+    calls = []
+
+    def old_torch_load(path, map_location=None, **kw):
+        calls.append(kw)
+        if "weights_only" in kw:
+            raise TypeError("load() got an unexpected keyword argument 'weights_only'")
+        return _Model()
+
+    torch, cv2 = mock.MagicMock(), mock.MagicMock()
+    torch.load.side_effect = old_torch_load
+    stubs = {name: mock.MagicMock() for name in (
+        "torch.optim", "torch.utils", "torch.utils.data", "torch.nn", "torch.autograd", "requests", "exported")}
+    stubs.update(torch=torch, cv2=cv2)
+    namespace = {"__name__": "template"}
+    with mock.patch.dict(sys.modules, stubs):
+        exec(util_files.deploy_ml, namespace)
+    assert calls == [{"weights_only": False}, {}] and isinstance(namespace["model"], _Model)
