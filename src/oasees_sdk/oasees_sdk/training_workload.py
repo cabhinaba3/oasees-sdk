@@ -34,7 +34,6 @@ spec:
       labels:
         app: training-pod-EXPERIMENT
     spec:
-      nodeName: NODE_NAME
       containers:
       - image: andreasoikonomakis/oasees-training
         imagePullPolicy: IfNotPresent
@@ -101,7 +100,7 @@ spec:
 
 
 
-def deploy_workload(filename,ipfs_endpoint,node_name):
+def deploy_workload(filename,ipfs_endpoint,node_name=None):
 
     zip_file_path = "{}.zip".format(filename)
 
@@ -133,13 +132,20 @@ def deploy_workload(filename,ipfs_endpoint,node_name):
 
     yaml_file = yaml_file_template
     yaml_file = yaml_file.replace("IPFS HASH",ipfs_hash)
-    yaml_file = yaml_file.replace("NODE_NAME",node_name)
     yaml_file = yaml_file.replace("EXPERIMENT", filename.replace("_","-").lower())
     # Load the YAML into a list of dictionaries
     yaml_objects = list(yaml.safe_load_all(yaml_file))
-    # Create the Kubernetes API client
 
-    config.load_kube_config("./config")
+    # A node selector, unlike spec.nodeName, still goes through the scheduler.
+    # Without a node name the scheduler picks the node.
+    if node_name:
+        for obj in yaml_objects:
+            if obj.get('kind') == 'Deployment':
+                obj['spec']['template']['spec']['nodeSelector'] = {'kubernetes.io/hostname': node_name}
+
+    # Create the Kubernetes API client
+    # A ./config file next to the caller still wins; otherwise KUBECONFIG or ~/.kube/config.
+    config.load_kube_config("./config" if os.path.isfile("./config") else None)
     k8s_client = client.ApiClient()
     # Create the resources
     core_resources = []
