@@ -5,6 +5,7 @@ from dotenv import load_dotenv
 import json
 import subprocess
 from .mlops.util_files import *
+from ..cli.commands.mlops import get_ipfs_api  # one definition, shared with the CLI
 from ipylab import JupyterFrontEnd
 import re
 import ast
@@ -97,16 +98,6 @@ def extract_and_reconstruct_magic_code(content):
     
     return '\n'.join(result_lines)
 
-
-def get_ipfs_api():
-    """Get IPFS service IP from Kubernetes"""
-    try:
-        ipfs_svc = subprocess.run(['kubectl','get','svc','oasees-ipfs','-o','jsonpath={.spec.clusterIP}'], 
-                                stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, check=True)
-        ipfs_ip = ipfs_svc.stdout.strip()
-        return f"/ip4/{ipfs_ip}/tcp/5001/http"
-    except subprocess.CalledProcessError as e:
-        return None
 
 
 def ipfs_add():
