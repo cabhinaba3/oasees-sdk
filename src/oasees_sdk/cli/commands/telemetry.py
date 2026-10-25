@@ -46,6 +46,10 @@ def get_thanos_endpoint():
     result = subprocess.run(['kubectl', 'get', 'service', 'thanos-query', '-n', 'default', '-o', 'jsonpath={.spec.clusterIP}'], 
                         capture_output=True, text=True)
     cluster_ip = result.stdout.strip()
+    if result.returncode != 0 or not cluster_ip:
+        # Without this the URL below becomes http://:9090 and every command fails with a confusing error.
+        raise click.ClickException("Could not find the thanos-query service in the default namespace. "
+                                   + result.stderr.strip())
 
     url = f"http://{cluster_ip}:9090/api/v1/query"
 
@@ -423,7 +427,9 @@ def configure_agents(config_file):
             if pod_ip and node_name:
                 pod_data.append((pod_ip, node_name))
 
-        
+        if not pod_data:
+            print("No running oasees-agent pods found (label component=oasees-agent). Nothing was configured.")
+            return
 
         # Send config to each pod
 
