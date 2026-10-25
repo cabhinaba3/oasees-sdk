@@ -4,12 +4,19 @@ import subprocess
 import json
 from kubernetes import client, config
 from importlib.metadata import version
-from packaging.version import Version
+from packaging.version import Version, InvalidVersion
 
 DOCKERHUB_USER = "oasees"
 DOCKERHUB_URL = "https://hub.docker.com/v2"
 
-def check_helm_updates():
+def is_newer(latest, current):
+    """True if `latest` is a later version than `current`. A version that can't be parsed never counts as newer."""
+    try:
+        return Version(current) < Version(latest)
+    except InvalidVersion:
+        return False
+
+def check_helm_updates(namespace="default"):
     """Check for Helm chart updates by updating repos and comparing versions."""
     try:
         # Update helm repositories
@@ -17,7 +24,7 @@ def check_helm_updates():
 
         # Get installed charts
         result = subprocess.run(
-            ["helm", "list", "-o", "json"],
+            ["helm", "list", "--namespace", namespace, "-o", "json"],
             capture_output=True, text=True, check=True
         )
         installed_charts = json.loads(result.stdout)
@@ -39,7 +46,7 @@ def check_helm_updates():
                 if search_data:
                     latest_version = search_data[0]["version"]
 
-                    if Version(current_version) < Version(latest_version):
+                    if is_newer(latest_version, current_version):
                         outdated_charts.append({
                             "name": chart["name"],
                             "namespace": chart["namespace"],
@@ -84,9 +91,11 @@ def get_running_digests(namespace="default"):
     """Get running pod image digests from Kubernetes."""
     config.load_kube_config()
     v1 = client.CoreV1Api()
-    pods = v1.list_namespaced_pod("default")
+    pods = v1.list_namespaced_pod(namespace)
     running = {}
     for pod in pods.items:
+        if not pod.status.container_statuses:  # not started yet, nothing running to compare
+            continue
         indexes = []
         for idx,c in enumerate(pod.spec.containers):
             if c.image_pull_policy == 'Always':
@@ -153,7 +162,7 @@ def update(namespace, user):
     resp = requests.get("https://pypi.org/pypi/oasees-sdk/json", timeout=3)
     latest_version = resp.json()["info"]["version"]
 
-    if current_version != latest_version:
+    if is_newer(latest_version, current_version):
         click.secho(f"⚠️  A newer version of the oasees-sdk is available ({latest_version}). "
                     f"Please run \"pip install -U oasees-sdk\" to upgrade.", fg="yellow")
         
@@ -163,7 +172,7 @@ def update(namespace, user):
     click.echo()
 
     # Check for Helm chart updates
-    outdated_helm = check_helm_updates()
+    outdated_helm = check_helm_updates(namespace)
     if outdated_helm:
         click.echo("⚠️  Outdated Helm charts detected:\n")
         for chart in outdated_helm:
