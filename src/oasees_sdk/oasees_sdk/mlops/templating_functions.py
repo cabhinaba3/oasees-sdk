@@ -59,7 +59,19 @@ def create_template(filename):
 
 
 
-def convert_to_pipeline(folder_name):
+def clean_requirements(lines, keep_pins=False):
+    """Tidy the pipreqs output. Versions are dropped unless keep_pins: pipreqs reads them from the
+    machine that built the notebook, which can differ from the image the workload runs on."""
+    cleaned = []
+    for line in lines:
+        cleaned_line = line.strip() if keep_pins else re.sub(r'([><=]=?[^,\s]+)', '', line).strip()
+        if re.split(r'[<>=~!;\s]', cleaned_line)[0] == 'opencv_python':
+            continue
+        cleaned.append(cleaned_line)
+    return cleaned
+
+
+def convert_to_pipeline(folder_name, keep_pins=False):
     notebook_path = os.path.join(folder_name, f"{folder_name}.ipynb")
     assets_folder = os.path.join(folder_name, "assets")
     requirements_path = os.path.join(folder_name,"requirements.txt")
@@ -81,15 +93,12 @@ def convert_to_pipeline(folder_name):
         return
 
 
+    if not os.path.exists(requirements_path):
+        print("Error: pipreqs did not create requirements.txt. Is pipreqs installed?")
+        return
+
     with open(requirements_path, 'r') as f:
-        lines = f.readlines()
-        cleaned_lines = []
-        for line in lines:
-            # Remove versioning information using regex
-            cleaned_line = re.sub(r'([><=]=?[^,\s]+)', '', line).strip()
-            if cleaned_line == 'opencv_python':
-                continue
-            cleaned_lines.append(cleaned_line)
+        cleaned_lines = clean_requirements(f.readlines(), keep_pins)
 
     with open(requirements_path, 'w') as f:
         for cleaned_line in cleaned_lines:
