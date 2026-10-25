@@ -7,6 +7,9 @@ import requests
 import re
 import uuid
 
+# What the collector script imports. Keep docker/collector/Dockerfile on the same versions.
+COLLECTOR_REQUIREMENTS = "python-socketio==5.17.0 requests==2.32.5"
+
 @click.group(name='telemetry')
 def telemetry_commands():
     '''OASEES Telemetry Management Utilities'''
@@ -197,7 +200,8 @@ while True:
 @click.option('--source','-s',required=True, help='Source identifier')
 @click.option('--source-endpoint','-se',required=True, help='Source endpoint URL')
 @click.option('--scrape-interval','-si',type=int, default=1, help='Scrape interval in seconds (default: 1)')
-def deploy_collector(metric_index, source, source_endpoint, scrape_interval):
+@click.option('--image', default=None, help='Image that already has python-socketio and requests installed (see docker/collector). Without it the pod runs python:3.9-slim and pip-installs them on every start.')
+def deploy_collector(metric_index, source, source_endpoint, scrape_interval, image):
    """Deploy OASEES metric collector"""
    
    import tempfile
@@ -233,8 +237,12 @@ def deploy_collector(metric_index, source, source_endpoint, scrape_interval):
    click.echo(f"  Source Endpoint: {source_endpoint}")
    click.echo(f"  Scrape Interval: {scrape_interval} seconds")
    click.echo(f"  Pod Name: {pod_name}")
+   click.echo(f"  Image: {image or 'python:3.9-slim (pip install on start)'}")
    click.echo()
-   
+
+   # A prepared image already has the packages, so only the fallback installs them.
+   pip_install = "" if image else f"pip install {COLLECTOR_REQUIREMENTS} &&\n     "
+
    # Python collector script content
    collector_script = '''import socketio
 import requests
@@ -328,12 +336,11 @@ spec:
  restartPolicy: Always
  containers:
  - name: collector
-   image: python:3.9-slim
+   image: {image or 'python:3.9-slim'}
    command: ["sh", "-c"]
    args:
    - |
-     pip install python-socketio requests &&
-     python /app/collector.py
+     {pip_install}python /app/collector.py
    env:
      - name: METRIC_INDEX
        value: "{metric_index}"

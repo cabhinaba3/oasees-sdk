@@ -158,6 +158,7 @@ Commands for managing metrics collection and agent configuration for DAO interac
         * `-i <metric_index>` (Required): The name for the metric index to group metrics together[.
         * `-s <device_name>` (Required): The device where the collector will be deployed.
         * `-se <scrape_endpoint>` (Required): The URL endpoint to scrape for metrics.
+        * `--image <image>` (Optional): An image that already has `python-socketio` and `requests`. Build one from `docker/collector/Dockerfile`. Without it the pod pip-installs them every time it starts, which is slow and needs internet access on the device.
     * **Usage**:
         ```bash
         oasees-sdk telemetry deploy-collector -i swarm_metrics -s device4 -se http://192.168.88.239:32691/metrics
