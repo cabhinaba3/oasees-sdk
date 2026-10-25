@@ -235,10 +235,10 @@ Commands to support federated learning workflows, including data preparation, pi
     * **Description**: Deploys a trained model for inference.
     * **Arguments**:
         * `--project=<project-name>` (Required): The name of the project the model belongs to.
-        * `--model=<model-file.pkl>` (Required): The name of the trained model file.
+        * `--model=<model-file.safetensors>` (Required): The name of the trained model file.
     * **Usage**:
         ```bash
-        oasees-sdk mlops deploy-model --project-name=example1 --model=example1_2025-07-24_06-16-15.pkl
+        oasees-sdk mlops deploy-model --project-name=example1 --model=example1_2025-07-24_06-16-15.safetensors
         ```
 
 #### <ins>Uninstalling</ins>

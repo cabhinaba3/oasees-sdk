@@ -106,7 +106,7 @@ def deploy_model(model, project_name, pod_name):
     
     # Set pod name if not provided (use model name without extension)
     if not pod_name:
-        # Extract base name from model file (remove .pkl extension)
+        # Extract base name from model file (remove .safetensors extension)
         model_base = os.path.splitext(os.path.basename(model))[0]
         pod_name = sanitize_k8s_name(model_base)
     
@@ -421,9 +421,9 @@ spec:
         --MODEL_NAME ${{PROJECT_NAME}} \\
         --MIN_CLIENTS ${{MIN_CLIENTS}} &&
       TIMESTAMP=$(date +"%Y-%m-%d_%H-%M-%S") &&
-      HASH=$(ipfs --api=/ip4/$IPFS_IP/tcp/5001/http add $PROJECT_NAME.pkl -q) &&
+      HASH=$(ipfs --api=/ip4/$IPFS_IP/tcp/5001/http add $PROJECT_NAME.safetensors -q) &&
       echo ${{HASH}} &&
-      ipfs --api=/ip4/${{IPFS_IP}}/tcp/5001/http files cp  /ipfs/${{HASH}} /oasees-ml-ops/projects/ml/${{PROJECT_NAME}}/${{PROJECT_NAME}}_${{TIMESTAMP}}.pkl 
+      ipfs --api=/ip4/${{IPFS_IP}}/tcp/5001/http files cp  /ipfs/${{HASH}} /oasees-ml-ops/projects/ml/${{PROJECT_NAME}}/${{PROJECT_NAME}}_${{TIMESTAMP}}.safetensors
     ports:
     - containerPort: 9999
 
@@ -1286,7 +1286,7 @@ def init_project(name):
 
         code_cell("""
         from flask import Flask, request, jsonify
-        import pickle
+        from safetensors.numpy import load_file
         import io
         import numpy as np
         import argparse
@@ -1310,11 +1310,11 @@ def init_project(name):
         """),
 
         code_cell("""
-        def load_fl_model(pkl_path):
-            with open(pkl_path, 'rb') as f:
-                model_data = pickle.load(f)
-            
-            parameters = model_data['parameters']
+        def load_fl_model(model_path):
+            if model_path.endswith('.pkl'):
+                raise ValueError("Pickled models can run code when loaded, so they are not supported. Re-run FL training to get a .safetensors model.")
+            tensors = load_file(model_path)
+            parameters = [tensors[f'p{i}'] for i in range(len(tensors))]
             model = model_definition()
             param_list = list(model.parameters())
             
@@ -1331,7 +1331,7 @@ def init_project(name):
         %%capture
         try:
             parser = argparse.ArgumentParser(description='Flask ML Model Service')
-            parser.add_argument('--model-path', required=True, help='Path to the pickled model file')
+            parser.add_argument('--model-path', required=True, help='Path to the .safetensors model file')
             args = parser.parse_args()
         except:
             pass
@@ -1737,7 +1737,7 @@ def init_example_pytorch(name):
 
         code_cell("""
         from flask import Flask, request, jsonify
-        import pickle
+        from safetensors.numpy import load_file
         import io
         import numpy as np
         import argparse
@@ -1769,11 +1769,11 @@ def init_example_pytorch(name):
         """),
 
         code_cell("""
-        def load_fl_model(pkl_path):
-            with open(pkl_path, 'rb') as f:
-                model_data = pickle.load(f)
-            
-            parameters = model_data['parameters']
+        def load_fl_model(model_path):
+            if model_path.endswith('.pkl'):
+                raise ValueError("Pickled models can run code when loaded, so they are not supported. Re-run FL training to get a .safetensors model.")
+            tensors = load_file(model_path)
+            parameters = [tensors[f'p{i}'] for i in range(len(tensors))]
             model = model_definition()
             param_list = list(model.parameters())
             
@@ -1790,7 +1790,7 @@ def init_example_pytorch(name):
         %%capture
         try:
             parser = argparse.ArgumentParser(description='Flask ML Model Service')
-            parser.add_argument('--model-path', required=True, help='Path to the pickled model file')
+            parser.add_argument('--model-path', required=True, help='Path to the .safetensors model file')
             args = parser.parse_args()
         except:
             pass
@@ -2190,7 +2190,7 @@ def init_example_tensorflow(name):
 
         code_cell("""
         from flask import Flask, request, jsonify
-        import pickle
+        from safetensors.numpy import load_file
         import io
         import numpy as np
         import argparse
@@ -2229,12 +2229,13 @@ def init_example_tensorflow(name):
         """),
 
         code_cell("""
-        def load_fl_model(pkl_path):
-            with open(pkl_path, 'rb') as f:
-                model_data = pickle.load(f)
-            
+        def load_fl_model(model_path):
+            if model_path.endswith('.pkl'):
+                raise ValueError("Pickled models can run code when loaded, so they are not supported. Re-run FL training to get a .safetensors model.")
+            tensors = load_file(model_path)
+            parameters = [tensors[f'p{i}'] for i in range(len(tensors))]
+
             model = model_definition()
-            parameters = model_data['parameters']
 
 
             model_weights = model.get_weights()
@@ -2248,7 +2249,7 @@ def init_example_tensorflow(name):
         %%capture
         try:
             parser = argparse.ArgumentParser(description='Flask ML Model Service')
-            parser.add_argument('--model-path', required=True, help='Path to the pickled model file')
+            parser.add_argument('--model-path', required=True, help='Path to the .safetensors model file')
             args = parser.parse_args()
         except:
             pass

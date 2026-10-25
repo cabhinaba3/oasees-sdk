@@ -568,7 +568,7 @@ fl_server = '''
 import flwr as fl
 from typing import List, Tuple
 from flwr.common import Metrics
-import pickle
+from safetensors.numpy import save_file
 import warnings
 import logging
 import argparse
@@ -627,7 +627,7 @@ def weighted_average_fit(metrics: List[Tuple[int, Metrics]]) -> Metrics:
     return aggregated
 
 class ServerStrategy(fl.server.strategy.FedAvg):
-    def __init__(self, model_save_path='final_model.pkl', **kwargs):
+    def __init__(self, model_save_path='final_model.safetensors', **kwargs):
         super().__init__(**kwargs)
         self.model_save_path = model_save_path
         self.final_parameters = None
@@ -674,21 +674,13 @@ class ServerStrategy(fl.server.strategy.FedAvg):
     def _save_parameters(self, parameters):
         params_list = fl.common.parameters_to_ndarrays(parameters)
         
-        model_data = {
-            'parameters': params_list,
-            'parameter_shapes': [param.shape for param in params_list],
-            'parameter_dtypes': [str(param.dtype) for param in params_list],
-            'num_parameters': len(params_list),
-            'total_size': sum(param.size for param in params_list)
-        }
-        
-        with open(self.model_save_path, 'wb') as f:
-            pickle.dump(model_data, f,protocol=pickle.HIGHEST_PROTOCOL)
+        # .copy() makes each array C-contiguous; safetensors scrambles non-contiguous ones.
+        save_file({f'p{i}': param.copy() for i, param in enumerate(params_list)}, self.model_save_path)
         
         print(f"Model saved to {self.model_save_path}")
 
 strategy = ServerStrategy(
-    model_save_path='{}.pkl'.format(MODEL_NAME),
+    model_save_path='{}.safetensors'.format(MODEL_NAME),
     fraction_fit=1.0,
     fraction_evaluate=1.0,
     min_fit_clients=MIN_CLIENTS,
