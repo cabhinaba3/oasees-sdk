@@ -21,6 +21,8 @@ classifiers = [
 [tool.poetry.dependencies]
 Click="*"
 requests="*"
+requests-toolbelt="*"
+packaging="*"
 python-dotenv="*"
 kubernetes="*"
 jupytext="*"

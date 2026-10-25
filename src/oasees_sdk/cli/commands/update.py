@@ -4,6 +4,7 @@ import subprocess
 import json
 from kubernetes import client, config
 from importlib.metadata import version
+from packaging.version import Version
 
 DOCKERHUB_USER = "oasees"
 DOCKERHUB_URL = "https://hub.docker.com/v2"
@@ -38,7 +39,7 @@ def check_helm_updates():
                 if search_data:
                     latest_version = search_data[0]["version"]
 
-                    if current_version < latest_version:
+                    if Version(current_version) < Version(latest_version):
                         outdated_charts.append({
                             "name": chart["name"],
                             "namespace": chart["namespace"],
