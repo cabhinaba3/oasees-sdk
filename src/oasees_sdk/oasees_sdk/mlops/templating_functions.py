@@ -129,6 +129,9 @@ def convert_to_pipeline(folder_name):
     print(f"{folder_name} Workload is ready! Go to SDK Manager...")
 
 def upload_to_ipfs(folder_path, ipfs_api_url,_type):
+    if not ipfs_api_url:
+        raise RuntimeError("The IPFS endpoint is not set. Set IPFS_ENDPOINT (environment variable or .env file), "
+                           "for example http://<ip>:5001/api/v0")
     folder_name = os.path.basename(folder_path)
     files = []
 
@@ -140,7 +143,7 @@ def upload_to_ipfs(folder_path, ipfs_api_url,_type):
 
     try:
         # Add folder to IPFS
-        response = requests.post(f"{Envs.ipfs_endpoint}/add?recursive=true&wrap-with-directory=true", files=files)
+        response = requests.post(f"{ipfs_api_url}/add?recursive=true&wrap-with-directory=true", files=files)
         
         if response.status_code == 200:
             # Process response line by line
@@ -165,6 +168,9 @@ def upload_to_ipfs(folder_path, ipfs_api_url,_type):
 
 
 def upload_to_indexer(project_name, cid,_type):
+    if not Envs.indexer_endpoint:
+        raise RuntimeError("The indexer endpoint is not set. Set INDEXER_ENDPOINT (environment variable or .env file), "
+                           "for example http://<ip>:31007")
     url = f'{Envs.indexer_endpoint}/upload_project'
     headers = {
         'Content-Type': 'application/json',

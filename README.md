@@ -272,3 +272,14 @@ and **on <ins>each</ins> of your worker nodes**:
 ## Python Module SDK
 
 Information about the Python module SDK to be added.
+
+### Configuration
+
+Uploading a project from a notebook template needs two endpoints. Set them as environment variables or in a `.env` file in the working directory (a real environment variable wins over the file):
+
+```
+IPFS_ENDPOINT=http://<ip>:5001/api/v0
+INDEXER_ENDPOINT=http://<ip>:31007
+```
+
+Without `IPFS_ENDPOINT` or `INDEXER_ENDPOINT` the upload stops with a message that names the missing variable.
