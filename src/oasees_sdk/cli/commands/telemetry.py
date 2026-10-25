@@ -35,6 +35,13 @@ def sanitize_k8s_name(name):
     return sanitized
 
 
+def node_selector_name(name):
+    """Like sanitize_k8s_name but keeps dots, which node names such as node1.example.org contain."""
+    sanitized = re.sub(r'_', '-', name.lower())
+    sanitized = re.sub(r'[^a-z0-9.-]', '', sanitized)
+    return re.sub(r'^[-.]+|[-.]+$', '', sanitized)
+
+
 def get_thanos_endpoint():
     result = subprocess.run(['kubectl', 'get', 'service', 'thanos-query', '-n', 'default', '-o', 'jsonpath={.spec.clusterIP}'], 
                         capture_output=True, text=True)
@@ -332,7 +339,7 @@ metadata:
    tag: collector
 spec:
  nodeSelector:
-   kubernetes.io/hostname: {sanitized_source}
+   kubernetes.io/hostname: {node_selector_name(source)}
  restartPolicy: Always
  containers:
  - name: collector

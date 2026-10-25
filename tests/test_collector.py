@@ -10,7 +10,7 @@ from oasees_sdk.cli.commands import telemetry
 DOCKERFILE = Path(__file__).parent.parent / "docker/collector/Dockerfile"
 
 
-def _deploy(*extra):
+def _deploy(*extra, source="node1"):
     """Run `deploy-collector` with kubectl mocked; return (ConfigMap, Pod) it would have applied."""
     applied = []
 
@@ -22,7 +22,7 @@ def _deploy(*extra):
     with mock.patch.object(telemetry, "get_telemetry_api", return_value="http://10.0.0.1:5005"), \
          mock.patch.object(subprocess, "run", fake_run):
         result = CliRunner().invoke(telemetry.deploy_collector, [
-            "-i", "0", "-s", "node1", "-se", "http://node1:9100/metrics", *extra])
+            "-i", "0", "-s", source, "-se", "http://node1:9100/metrics", *extra])
     assert result.exit_code == 0, result.output
     configmap, pod = [d for d in yaml.safe_load_all(applied[0]) if d]
     return configmap, pod
@@ -55,3 +55,15 @@ def test_the_collector_script_is_still_mounted_from_the_configmap():
 def test_dockerfile_pins_the_same_versions_as_the_code():
     install = next(l for l in DOCKERFILE.read_text().splitlines() if "pip install" in l)
     assert install.endswith(telemetry.COLLECTOR_REQUIREMENTS)
+
+
+def test_node_selector_keeps_the_dots_of_a_real_node_name():
+    _, pod = _deploy(source="node1.torusexp4.example.org")
+    assert pod["spec"]["nodeSelector"] == {"kubernetes.io/hostname": "node1.torusexp4.example.org"}
+    assert "." not in pod["metadata"]["name"]          # pod and configmap names are unchanged
+
+
+def test_node_selector_still_normalises_the_old_way():
+    _, pod = _deploy(source="Device_4")
+    assert pod["spec"]["nodeSelector"] == {"kubernetes.io/hostname": "device-4"}
+    assert pod["metadata"]["name"].startswith("collector-device-4-")
