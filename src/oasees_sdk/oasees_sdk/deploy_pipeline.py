@@ -84,7 +84,7 @@ def create_load_job(ipfs_api_url,api_instance,ipfs_cid, app_name, worker_node_na
 
     template = client.V1PodTemplateSpec(
         metadata=client.V1ObjectMeta(labels={"app": "buildkit"}),
-        spec=client.V1PodSpec(restart_policy="Never", containers=[container], volumes=[volume,volume_b],node_selector={"node-role.kubernetes.io/master" : "true"},service_account_name="loader")
+        spec=client.V1PodSpec(restart_policy="Never", containers=[container], volumes=[volume,volume_b],node_selector={"kubernetes.io/hostname" : worker_node_name},service_account_name="loader")
     )
 
     spec = client.V1JobSpec(template=template, ttl_seconds_after_finished=1)
