@@ -1,4 +1,5 @@
 import os
+import ast
 import json
 from .ml_template import *
 from. util_files import *
@@ -184,6 +185,17 @@ def upload_to_indexer(project_name, cid,_type):
         print('Failed to add project folder version')
 
 
+def read_exec_params(source_code):
+    """Return the exec_params dict from the parameters cell without running the cell."""
+    for node in ast.parse(source_code).body:
+        if isinstance(node, ast.Assign) and [t.id for t in node.targets if isinstance(t, ast.Name)] == ["exec_params"]:
+            try:
+                return ast.literal_eval(node.value)
+            except ValueError:
+                break
+    raise ValueError("The Execution Parameters cell must contain `exec_params = {...}` made of plain values (strings, numbers, lists, dicts).")
+
+
 def modify_notebook(folder_name):
 
 
@@ -215,14 +227,12 @@ def modify_notebook(folder_name):
             params = notebook_json['cells'][i + 1]['source']
             source_code = ''.join(params)
             print(source_code)
-            local_vars = {}
-            exec(source_code, {}, local_vars)
+            user_params = read_exec_params(source_code)
 
-            params = local_vars
             exec_params ={
                 "epochs": 1,
                 "learning_rate": 0.01,
-                "ipfs_hash": local_vars["exec_params"]["ipfs_hash"],
+                "ipfs_hash": user_params["ipfs_hash"],
                 "retrain": 0,
                 "sample_num": 1,
                 "batch_size": 1           
