@@ -158,7 +158,7 @@ Commands for managing metrics collection and agent configuration for DAO interac
         * `-i <metric_index>` (Required): The name for the metric index to group metrics together[.
         * `-s <device_name>` (Required): The device where the collector will be deployed.
         * `-se <scrape_endpoint>` (Required): The URL endpoint to scrape for metrics.
-        * `--image <image>` (Optional): An image that already has `python-socketio` and `requests`. Build one from `docker/collector/Dockerfile`. Without it the pod pip-installs them every time it starts, which is slow and needs internet access on the device.
+        * `--image <image>` (Optional): An image that already has `python-socketio` and `requests`. Build one from `docker/collector/Dockerfile`, or use the published `ccohitherewer/oasees-collector:1.0` (amd64 and arm64). Without it the pod pip-installs them every time it starts, which is slow and needs internet access on the device.
     * **Usage**:
         ```bash
         oasees-sdk telemetry deploy-collector -i swarm_metrics -s device4 -se http://192.168.88.239:32691/metrics
@@ -229,6 +229,7 @@ Commands to support federated learning workflows, including data preparation, pi
         * `--min-clients INTEGER` (Optional): How many connected clients the server needs to keep training (default: 70% of the data file pairs, rounded down). A client that times out is dropped, so a value equal to the client count stops training as soon as one client is lost.
         * `--epochs INTEGER` (Optional): The number of epochs per client per round (default: 5).
         * `--round-timeout INTEGER` (Optional): Seconds the server waits for a client in each round before skipping it (default: 60). Raise it if your clients need longer than that to train one round.
+    * **Image**: the FL server and client pods (and `deploy-model`) run `oasees/ml-base-image:latest`. Set `OASEES_ML_IMAGE` to use a different one. Models are saved with `safetensors`, which that image does not include, so use an image that has it. `docker/ml-base-image/Dockerfile` adds it, and `ccohitherewer/ml-base-image:safetensors` is a published copy (amd64 and arm64).
     * **Usage**:
         ```bash
         oasees-sdk mlops start-fl --project-name example1 --data-files "iris_data.npy,iris_target.npy,device1:iris_data.npy,iris_target.npy,device2"

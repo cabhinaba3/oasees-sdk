@@ -9,6 +9,10 @@ import argparse
 import shutil
 import re
 
+# Image for the model-deploy and FL pods. Set OASEES_ML_IMAGE to use another one, e.g. the
+# base image plus safetensors built from docker/ml-base-image.
+ML_IMAGE = os.environ.get("OASEES_ML_IMAGE", "oasees/ml-base-image:latest")
+
 @click.group(name='mlops')
 def mlops_commands():
     '''OASEES MLOPS Utilities'''
@@ -147,7 +151,7 @@ spec:
   restartPolicy: Never
   containers:
   - name: model-deploy
-    image: oasees/ml-base-image:latest
+    image: {ML_IMAGE}
     imagePullPolicy: IfNotPresent
     env:
       - name: PROJECT_NAME
@@ -416,7 +420,7 @@ spec:
     node-role.kubernetes.io/master: "true"
   containers:
   - name: fl-server
-    image: oasees/ml-base-image:latest
+    image: {ML_IMAGE}
     imagePullPolicy: IfNotPresent
     command: ["/bin/bash", "-c"]
     env:
@@ -501,7 +505,7 @@ spec:
     kubernetes.io/hostname: {node_name}
   containers:
   - name: fl-client
-    image: oasees/ml-base-image:latest
+    image: {ML_IMAGE}
     imagePullPolicy: IfNotPresent
     env:
       - name: PROJECT_NAME
