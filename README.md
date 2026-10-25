@@ -225,7 +225,9 @@ Commands to support federated learning workflows, including data preparation, pi
         * `--project-name TEXT` (Required): The name of the ML project.
         * `--data-files TEXT` (Required): A colon-separated list of `data,target,node` triplets (e.g., "file.npy,target.npy,node1:file.npy,target.npy,node2").
         * `--num-rounds INTEGER` (Optional): The number of training rounds (default: 5).
+        * `--min-clients INTEGER` (Optional): How many connected clients the server needs to keep training (default: 70% of the data file pairs, rounded down). A client that times out is dropped, so a value equal to the client count stops training as soon as one client is lost.
         * `--epochs INTEGER` (Optional): The number of epochs per client per round (default: 5).
+        * `--round-timeout INTEGER` (Optional): Seconds the server waits for a client in each round before skipping it (default: 60). Raise it if your clients need longer than that to train one round.
     * **Usage**:
         ```bash
         oasees-sdk mlops start-fl --project-name example1 --data-files "iris_data.npy,iris_target.npy,device1:iris_data.npy,iris_target.npy,device2"

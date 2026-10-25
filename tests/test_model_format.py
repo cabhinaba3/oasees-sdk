@@ -19,7 +19,8 @@ def _loaders():
     return [textwrap.dedent(b) for b in blocks]
 
 
-@pytest.mark.parametrize("template", [jupyter_templating.fl_server, util_files.fl_server])
+@pytest.mark.parametrize("template", [jupyter_templating.fl_server, util_files.fl_server],
+                         ids=["jupyter_templating", "util_files"])
 def test_fl_server_templates_do_not_use_pickle(template):
     assert "pickle" not in template and ".pkl" not in template
     assert "save_file(" in template and "param.copy()" in template

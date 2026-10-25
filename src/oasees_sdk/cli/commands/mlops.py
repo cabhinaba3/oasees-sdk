@@ -295,10 +295,11 @@ def get_ipfs_api():
 @click.option('--project-name', required=True, help='Project name for the FL system')
 @click.option('--data-files', required=True, 
               help='Comma-separated list of data:target:node triplets (data1.npy,target1.npy,node1:data2.npy,target2.npy,node2:...)')
-@click.option('--min-clients', type=int, help='Minimum number of clients (default: number of data file pairs)')
+@click.option('--min-clients', type=int, help='Minimum number of clients (default: 70% of the data file pairs, rounded down)')
 @click.option('--num-rounds', type=int, default=5, help='Number of rounds (default: 5)')
 @click.option('--epochs', type=int, default=5, help='Number of epochs per client (default: 5)')
-def start_fl(project_name, data_files, min_clients, num_rounds, epochs):
+@click.option('--round-timeout', type=int, default=60, help='Seconds to wait for a client in each round before skipping it (default: 60)')
+def start_fl(project_name, data_files, min_clients, num_rounds, epochs, round_timeout):
     """Start Federated Learning system with server and clients"""
     
     def wait_for_pod_ready(pod_name, timeout=300, check_interval=5):
@@ -361,8 +362,10 @@ def start_fl(project_name, data_files, min_clients, num_rounds, epochs):
     
     num_clients = len(data_array)
     if min_clients is None:
-        min_clients = num_clients
-    
+        # The server waits for this many connected clients before each step, so asking for all
+        # of them means one dropped client freezes training. 70% leaves room for stragglers.
+        min_clients = max(1, int(num_clients * 0.7))
+
     # Generate timestamp and names
     timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
     server_pod_name = f"fl-server-{project_name}-{timestamp}"
@@ -377,6 +380,7 @@ def start_fl(project_name, data_files, min_clients, num_rounds, epochs):
     click.echo(f"  Number of Clients: {num_clients}")
     click.echo(f"  Min Clients: {min_clients}")
     click.echo(f"  Num Rounds: {num_rounds}")
+    click.echo(f"  Round Timeout: {round_timeout}s")
     click.echo(f"  Epochs: {epochs}")
     click.echo(f"\nClient Configuration:")
     for i, (data, target, node) in enumerate(zip(data_array, target_array, node_array)):
@@ -411,7 +415,9 @@ spec:
       - name: MIN_CLIENTS
         value: "{min_clients}"
       - name: NUM_ROUNDS
-        value: "{num_rounds}"        
+        value: "{num_rounds}"
+      - name: ROUND_TIMEOUT
+        value: "{round_timeout}"
     args:
     - |
       HASH=$(ipfs --api=/ip4/${{IPFS_IP}}/tcp/5001/http files stat --hash /oasees-ml-ops/projects/ml/${{PROJECT_NAME}}) &&
@@ -419,7 +425,8 @@ spec:
       python ${{PROJECT_NAME}}/fl_server.py \\
         --NUM_ROUNDS ${{NUM_ROUNDS}} \\
         --MODEL_NAME ${{PROJECT_NAME}} \\
-        --MIN_CLIENTS ${{MIN_CLIENTS}} &&
+        --MIN_CLIENTS ${{MIN_CLIENTS}} \\
+        --ROUND_TIMEOUT ${{ROUND_TIMEOUT}} &&
       TIMESTAMP=$(date +"%Y-%m-%d_%H-%M-%S") &&
       HASH=$(ipfs --api=/ip4/$IPFS_IP/tcp/5001/http add $PROJECT_NAME.safetensors -q) &&
       echo ${{HASH}} &&

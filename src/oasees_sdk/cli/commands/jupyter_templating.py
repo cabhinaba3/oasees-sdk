@@ -86,16 +86,19 @@ parser = argparse.ArgumentParser(description='Flower Federated Learning Server')
 parser.add_argument('--NUM_ROUNDS', type=int, default=15, help='Number of federated learning rounds')
 parser.add_argument('--MIN_CLIENTS', type=int, default=1, help='Minimum number of clients required')
 parser.add_argument('--MODEL_NAME', type=str, default='my_model', help='Model name for saving')
+parser.add_argument('--ROUND_TIMEOUT', type=float, default=60, help='Seconds to wait for a client in each round before skipping it')
 
 args = parser.parse_args()
 
 NUM_ROUNDS = args.NUM_ROUNDS
 MIN_CLIENTS = args.MIN_CLIENTS
 MODEL_NAME = args.MODEL_NAME
+ROUND_TIMEOUT = args.ROUND_TIMEOUT
 
 print(f"Server Configuration:")
 print(f"  - NUM_ROUNDS: {NUM_ROUNDS}")
 print(f"  - MIN_CLIENTS: {MIN_CLIENTS}")
+print(f"  - ROUND_TIMEOUT: {ROUND_TIMEOUT}")
 print(f"  - MODEL_NAME: {MODEL_NAME}")
 print()
 
@@ -197,7 +200,7 @@ strategy = ServerStrategy(
 def main():
     fl.server.start_server(
         server_address="0.0.0.0:9999",
-        config=fl.server.ServerConfig(num_rounds=NUM_ROUNDS),
+        config=fl.server.ServerConfig(num_rounds=NUM_ROUNDS, round_timeout=ROUND_TIMEOUT),
         strategy=strategy,
     )
 
