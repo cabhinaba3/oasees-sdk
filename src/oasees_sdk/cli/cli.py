@@ -12,7 +12,6 @@ import os
 # from dotenv import load_dotenv
 import yaml
 # from kubernetes import client,config
-# from .oasees_ml_ops import sdk_manager_manifest
 # from .ipfs_client import ipfs_get,ipfs_upload
 import platform
 from pathlib import Path
@@ -242,19 +241,15 @@ def init(expose_ip,update,iface):
             try:
                 curl = subprocess.Popen(['curl','-sfL', 'https://get.k3s.io'], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
                 
-                if not iface:
-                    cmd = [
-                        'sh','-s','-','--write-kubeconfig-mode','644',
-                        '--write-kubeconfig', '/home/'+getpass.getuser()+'/.kube/config',
-                        '--node-label', 'user='+getpass.getuser()
-                        ]
-                else:
-                    cmd = [
-                        'sh','-s','-','--write-kubeconfig-mode','644',
-                        '--write-kubeconfig', '/home/'+getpass.getuser()+'/.kube/config',
-                        '--node-label', 'user='+getpass.getuser(),'--flannel-iface',iface
-                        ]
-                
+                cmd = [
+                    'sh','-s','-','--write-kubeconfig-mode','644',
+                    # ~ instead of /home/<user>, which is wrong on macOS and where homes live elsewhere
+                    '--write-kubeconfig', os.path.expanduser('~/.kube/config'),
+                    '--node-label', 'user='+getpass.getuser()
+                    ]
+                if iface:
+                    cmd += ['--flannel-iface', iface]
+
                 result = subprocess.check_output(cmd,stdin=curl.stdout)
                 
                 click.echo(result)
