@@ -30,6 +30,18 @@ import os
 import shutil
 import sys
 
+
+def heading(cell):
+    # '## Imports', '#  imports ' and a source stored as one string all give 'imports'
+    if cell.get('cell_type') != 'markdown':
+        return ''
+    source = cell.get('source', '')
+    text = (''.join(source) if isinstance(source, list) else source).strip()
+    if not text.startswith('#'):
+        return ''
+    return ' '.join(text.splitlines()[0].lstrip('#').split()).lower()
+
+
 notebook = sys.argv[1]
 epochs = int(sys.argv[2])
 learning_rate = float(sys.argv[3])
@@ -62,17 +74,17 @@ with open(f"{notebook}.ipynb", 'r', encoding='utf-8') as file:
 
 notebook_json = json.loads(notebook_content)
 
-PARAMS = ['## Execution Parameters']
-IMPORTS = ['## Imports']
-MODEL_DEF = ['## Model Definition']
+PARAMS = 'execution parameters'
+IMPORTS = 'imports'
+MODEL_DEF = 'model definition'
 
 
 _imports = ''
 _model_def = ''
 
 
-for i in range(0, len(notebook_json['cells'])):
-    if notebook_json['cells'][i]['source'] == PARAMS:
+for i in range(0, len(notebook_json['cells']) - 1):  # a heading needs a cell after it
+    if heading(notebook_json['cells'][i]) == PARAMS:
         params = notebook_json['cells'][i + 1]['source']
         source_code = ''.join(params)
         local_vars = {}
@@ -82,12 +94,12 @@ for i in range(0, len(notebook_json['cells'])):
         notebook_json['cells'][i + 1]['source'] = modified_source.splitlines(keepends=True)
  
 
-    if notebook_json['cells'][i]['source'] == IMPORTS:
+    if heading(notebook_json['cells'][i]) == IMPORTS:
     	_imports = notebook_json['cells'][i + 1]['source']
     	_imports = ''.join(_imports)
 
 
-    if notebook_json['cells'][i]['source'] == MODEL_DEF:
+    if heading(notebook_json['cells'][i]) == MODEL_DEF:
     	_model_def = notebook_json['cells'][i + 1]['source']
     	_model_def = ''.join(_model_def)
 

@@ -200,6 +200,20 @@ def upload_to_indexer(project_name, cid,_type):
         print('Failed to add project folder version')
 
 
+def cell_heading(cell):
+    """The lower-cased text of a markdown heading cell, '' for any other cell.
+
+    '## Imports', '#  imports ' and a source stored as one string all give 'imports', so
+    small edits to a heading don't hide the cell from the converter."""
+    if cell.get('cell_type') != 'markdown':
+        return ''
+    source = cell.get('source', '')
+    text = (''.join(source) if isinstance(source, list) else source).strip()
+    if not text.startswith('#'):
+        return ''
+    return ' '.join(text.splitlines()[0].lstrip('#').split()).lower()
+
+
 def read_exec_params(source_code):
     """Return the exec_params dict from the parameters cell without running the cell."""
     for node in ast.parse(source_code).body:
@@ -227,9 +241,9 @@ def modify_notebook(folder_name):
 
     notebook_json = json.loads(notebook_content)
 
-    PARAMS = ['## Execution Parameters']
-    IMPORTS = ['## Imports']
-    MODEL_DEF = ['## Model Definition']
+    PARAMS = 'execution parameters'
+    IMPORTS = 'imports'
+    MODEL_DEF = 'model definition'
 
     _imports = ''
     _model_def = ''
@@ -237,8 +251,8 @@ def modify_notebook(folder_name):
 
 
 
-    for i in range(0, len(notebook_json['cells'])):
-        if notebook_json['cells'][i]['source'] == PARAMS:
+    for i in range(0, len(notebook_json['cells']) - 1):  # a heading needs a cell after it
+        if cell_heading(notebook_json['cells'][i]) == PARAMS:
             params = notebook_json['cells'][i + 1]['source']
             source_code = ''.join(params)
             print(source_code)
@@ -264,12 +278,12 @@ def modify_notebook(folder_name):
 
      
 
-        if notebook_json['cells'][i]['source'] == IMPORTS:
+        if cell_heading(notebook_json['cells'][i]) == IMPORTS:
             _imports = notebook_json['cells'][i + 1]['source']
             _imports = ''.join(_imports)
 
 
-        if notebook_json['cells'][i]['source'] == MODEL_DEF:
+        if cell_heading(notebook_json['cells'][i]) == MODEL_DEF:
             _model_def = notebook_json['cells'][i + 1]['source']
             _model_def = ''.join(_model_def)
 
@@ -340,24 +354,24 @@ def convert_fl_template(folder_name):
 
     notebook_json = json.loads(notebook_content)
 
-    MODEL = ['## Federated Learning Model']
-    SERVER = ['## Federated Learning Server']
-    CLIENT = ['## Federated Learning Client']
+    MODEL = 'federated learning model'
+    SERVER = 'federated learning server'
+    CLIENT = 'federated learning client'
 
     _model = ''
     _server = ''
     _client = ''
 
-    for i in range(0, len(notebook_json['cells'])):
-        if notebook_json['cells'][i]['source'] == MODEL:
+    for i in range(0, len(notebook_json['cells']) - 1):  # a heading needs a cell after it
+        if cell_heading(notebook_json['cells'][i]) == MODEL:
             _model = notebook_json['cells'][i + 1]['source']
             _model = ''.join(_model)
 
-        if notebook_json['cells'][i]['source'] == SERVER:
+        if cell_heading(notebook_json['cells'][i]) == SERVER:
             _server = notebook_json['cells'][i + 1]['source']
             _server = ''.join(_server)
 
-        if notebook_json['cells'][i]['source'] == CLIENT:
+        if cell_heading(notebook_json['cells'][i]) == CLIENT:
             _client = notebook_json['cells'][i + 1]['source']
             _client = ''.join(_client)
 
