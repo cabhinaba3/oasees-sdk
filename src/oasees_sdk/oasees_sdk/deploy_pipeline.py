@@ -1,7 +1,11 @@
 from kubernetes import client, config
 from kubernetes.client.rest import ApiException
 
-def create_job(api_instance,ipfs_cid, app_name):
+# Where the build job downloads the app from. create_load_job takes the URL as an argument; this
+# is the address create_job always used, kept as the default.
+DEFAULT_BUILD_IPFS_API = "http://ipfs-kubo-service.default.svc.cluster.local:5002"
+
+def create_job(api_instance,ipfs_cid, app_name, ipfs_api_url=DEFAULT_BUILD_IPFS_API):
     container = client.V1Container(
         name="buildkit",
 	    image="andreasoikonomakis/oasees-builder:latest",
@@ -9,7 +13,7 @@ def create_job(api_instance,ipfs_cid, app_name):
         #image_pull_policy="Never",
         security_context=client.V1SecurityContext(privileged=True),
         command=["/entrypoint.sh"],
-        args=["/bin/bash", "-c", f"python3 /download_ipfs.py http://ipfs-kubo-service.default.svc.cluster.local:5002 {ipfs_cid} . && "
+        args=["/bin/bash", "-c", f"python3 /download_ipfs.py {ipfs_api_url} {ipfs_cid} . && "
               f"nerdctl -a /run/k3s/containerd/containerd.sock --namespace k8s.io build -t {app_name}:oasees ."],
         env=[
             client.V1EnvVar(name="IPFS_CID", value=ipfs_cid),
@@ -45,6 +49,7 @@ def create_job(api_instance,ipfs_cid, app_name):
         resp="Job {} created".format(job_name)
     except ApiException as e:
         resp="Error for Job {}".format(job_name)
+        print(e)
 
 
     return resp
