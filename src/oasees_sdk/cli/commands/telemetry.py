@@ -120,7 +120,8 @@ def check_metrics(metrics):
     import re, requests
     
     pattern = r'(\w+)\[(.*?)\]'
-    threshold_pattern = r'(\w+)\[(\w+)\](>=|<=|>|<|=)(\d+(?:\.\d+)?)'
+    # the source may be a node name such as node1.example.org, so allow dots and hyphens
+    threshold_pattern = r'(\w+)\[([\w.-]+)\](>=|<=|>|<|=)(\d+(?:\.\d+)?)'
     
     queries = []
     thresholds = {}
