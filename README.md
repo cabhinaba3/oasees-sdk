@@ -257,6 +257,31 @@ Commands to support federated learning workflows, including data preparation, pi
         ```
     * **Image size**: the inference service takes single-channel (grayscale) images of 28x28 pixels by default. Send an `X-Image-Size` header (`32` or `32x48`, height by width) to use another size, or set `IMAGE_SIZE` in the service's environment to change the default.
 
+### V. Network Topology
+
+Emulate the network between your nodes (for example far-edge devices on a slow uplink to a cloud node) by declaring delay, jitter, loss and bandwidth per link. The SDK applies them with Linux NetEm on each node, through a short-lived pod, so no SSH access is needed. Pod traffic between nodes is affected as well, since it travels between the node addresses. Only traffic to the listed peer nodes is touched; everything else, SSH included, is left alone.
+
+```yaml
+# topology.yaml
+nodes:                          # optional labels: topology.oasees.io/tier and /zone
+  node0: {tier: cloud}
+  node2: {tier: far-edge, zone: line-a}
+links:
+  - {between: [node2, node0], delay_ms: 80, jitter_ms: 5, rate_mbit: 10}   # both directions
+  - {from: node1, to: node0, delay_ms: 20, loss_pct: 1}                     # one direction
+```
+
+* #### `oasees-sdk topology apply -f topology.yaml`
+    * **Description**: Applies the links and labels, replacing any earlier topology. Node names are the Kubernetes node names.
+* #### `oasees-sdk topology measure`
+    * **Description**: Pings every node from every other node and prints the round-trip times, to check what is in effect. A link with 80 ms each way shows about 160 ms.
+* #### `oasees-sdk topology show`
+    * **Description**: Prints the topology that was last applied.
+* #### `oasees-sdk topology clear`
+    * **Description**: Removes every impairment from every node.
+
+The pods use the `nicolaka/netshoot` image for `tc` and `ping`; set `OASEES_NETEM_IMAGE` to use another image that has both.
+
 #### <ins>Uninstalling</ins>
 
 If you want to uninstall your cluster (e.g. you've restarted your OASEES stack) run the following **on the master node**:
