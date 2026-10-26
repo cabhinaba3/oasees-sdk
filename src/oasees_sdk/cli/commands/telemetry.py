@@ -56,6 +56,16 @@ def get_thanos_endpoint():
     return url
 
 
+def query_thanos(url, params):
+    """GET a Thanos query. The address is cluster-internal, so off the cluster it can't be reached:
+    say so after 10 seconds instead of hanging and printing a traceback."""
+    try:
+        return requests.get(url, params=params, timeout=10).json()
+    except requests.exceptions.RequestException as e:
+        raise click.ClickException(f"Could not reach thanos-query at {url} ({type(e).__name__}). "
+                                   "It is a cluster-internal address, so run this command on a cluster node.")
+
+
 @telemetry_commands.command()
 def metrics_index():
     '''List All metric names'''
@@ -64,8 +74,7 @@ def metrics_index():
 
     url = get_thanos_endpoint()
     params = {'query': '{__name__=~"oasees_.*"}'}
-    response = requests.get(url, params=params)
-    data = response.json()
+    data = query_thanos(url, params)
 
     metric_names = set()
     for result in data['data']['result']:
@@ -88,8 +97,7 @@ def metrics_list(index):
 
     url = get_thanos_endpoint()
     params = {'query': f'{{__name__=~"oasees_.*", metric_index="{index}"}}'}
-    response = requests.get(url, params=params)
-    data = response.json()
+    data = query_thanos(url, params)
 
     metric_names = set()
     by_source_dict = {}
@@ -143,7 +151,7 @@ def check_metrics(metrics):
     
     for index, metric in queries:
         query = f'{metric}{{metric_index="{index}"}}'
-        response = requests.get(url, params={"query": query}).json()
+        response = query_thanos(url, {"query": query})
         
         for result in response.get("data", {}).get("result", []):
             source = result.get("metric", {}).get("source", "")

@@ -52,3 +52,12 @@ def test_threshold_on_a_dotted_node_name_filters_the_output():
 def test_threshold_that_is_not_crossed_hides_the_line():
     out = _check(["swarm[cpu_temperature_celsius]", "cpu_temperature_celsius[node-2]>90"], {"node-2": 85.0})
     assert "node-2" not in out
+
+
+def test_unreachable_thanos_says_to_run_on_a_cluster_node():
+    import requests
+    with mock.patch.object(telemetry, "get_thanos_endpoint", return_value="http://10.43.0.9:9090/api/v1/query"), \
+         mock.patch.object(telemetry.requests, "get", side_effect=requests.exceptions.ConnectTimeout("timed out")) as get:
+        result = CliRunner().invoke(telemetry.metrics_index, [])
+    assert result.exit_code == 1 and "run this command on a cluster node" in result.output
+    assert get.call_args.kwargs["timeout"] == 10
