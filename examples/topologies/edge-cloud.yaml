@@ -1,0 +1,11 @@
+# Far-edge devices on a 10 Mbit/s uplink, 80 ms from the cloud node; a gateway 20 ms away.
+nodes:
+  node0: {tier: cloud}
+  node1: {tier: near-edge, zone: gateway}
+  node2: {tier: far-edge, zone: line-a}
+  node3: {tier: far-edge, zone: line-a}
+links:
+  - {between: [node1, node0], delay_ms: 20}
+  - {between: [node2, node0], delay_ms: 80, rate_mbit: 10}
+  - {between: [node3, node0], delay_ms: 80, rate_mbit: 10}
+  - {between: [node2, node3], delay_ms: 5}

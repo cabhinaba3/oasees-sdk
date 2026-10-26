@@ -1,0 +1,20 @@
+# A minimal IPFS node behind the oasees-ipfs service, for clusters without the OASEES stack.
+# It runs offline: nothing is shared with the public IPFS network.
+apiVersion: v1
+kind: Pod
+metadata: {name: kubo, labels: {app: oasees-ipfs}}
+spec:
+  nodeSelector: {node-role.kubernetes.io/master: "true"}
+  containers:
+  - name: kubo
+    image: ipfs/kubo:v0.30.0
+    args: ["daemon", "--offline", "--migrate=true"]
+    env: [{name: IPFS_PROFILE, value: "test"}]
+    ports: [{containerPort: 5001}]
+---
+apiVersion: v1
+kind: Service
+metadata: {name: oasees-ipfs}
+spec:
+  selector: {app: oasees-ipfs}
+  ports: [{name: api, port: 5001, targetPort: 5001}]

@@ -1,0 +1,7 @@
+# All four nodes on one LAN: no impairment. The baseline to compare the others with.
+nodes:
+  node0: {tier: cloud}
+  node1: {tier: near-edge, zone: gateway}
+  node2: {tier: far-edge, zone: line-a}
+  node3: {tier: far-edge, zone: line-a}
+links: []

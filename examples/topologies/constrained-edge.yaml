@@ -1,0 +1,11 @@
+# A poor uplink: far-edge devices 150 ms (+-20 ms) from the cloud node at 2 Mbit/s with 2% loss.
+nodes:
+  node0: {tier: cloud}
+  node1: {tier: near-edge, zone: gateway}
+  node2: {tier: far-edge, zone: line-a}
+  node3: {tier: far-edge, zone: line-a}
+links:
+  - {between: [node1, node0], delay_ms: 40, rate_mbit: 20}
+  - {between: [node2, node0], delay_ms: 150, jitter_ms: 20, rate_mbit: 2, loss_pct: 2}
+  - {between: [node3, node0], delay_ms: 150, jitter_ms: 20, rate_mbit: 2, loss_pct: 2}
+  - {between: [node2, node3], delay_ms: 5}
