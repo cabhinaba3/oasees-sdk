@@ -41,6 +41,8 @@ class Client(fl.client.NumPyClient):
         return 0.1, 10, {"accuracy": 0.5}
 
 address = "127.0.0.1:%d"
+if len(sys.argv) > 3:
+    open(sys.argv[3], "w").close()           # imports done, about to connect
 if hasattr(fl.client, "start_numpy_client"):
     fl.client.start_numpy_client(server_address=address, client=Client())
 else:
@@ -75,11 +77,21 @@ def main():
         server.kill()
         sys.exit(f"The server did not start listening on port {PORT}:\n{server.stdout.read()}")
 
-    started = time.time()
-    clients = [subprocess.Popen([sys.executable, "client.py", mean, mode], cwd=work,
+    def client(mean, mode, *extra):
+        return subprocess.Popen([sys.executable, "client.py", mean, mode, *extra], cwd=work,
                                 stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-               for mean, mode in (("1.0", "train"), ("3.0", "train"), ("0.0", "hang"))]
-    print("Clients: two that train (data means 1.0 and 3.0), one that hangs")
+
+    # The hung client connects first. The server starts a round as soon as 2 clients are there,
+    # so a hung client that connected last could miss every round and nothing would be tested.
+    ready = os.path.join(work, "hung-client-ready")
+    clients = [client("0.0", "hang", ready)]
+    deadline = time.time() + 60
+    while not os.path.exists(ready) and time.time() < deadline:
+        time.sleep(0.2)
+    time.sleep(2)                                # let its connection reach the server
+    started = time.time()
+    clients += [client("2.0", "train"), client("2.0", "train")]
+    print("Clients: one that hangs (connected first), then two that train")
 
     try:
         output, _ = server.communicate(timeout=10 * TIMEOUT * ROUNDS + 60)
@@ -102,9 +114,16 @@ def main():
     model = load_file(model_path)
     print(f"Saved model {model_path}: " + ", ".join(f"{k} {v.shape} = {v.ravel()[0]:g}" for k, v in model.items()))
 
-    # Each round averages the two training clients: (w+1 + w+3) / 2 = w + 2. Two rounds from 0 give 4.
+    # A round that waited for the hung client takes at least the timeout. If the run was quicker,
+    # the hung client never got into a round and the example proved nothing.
+    if elapsed < TIMEOUT:
+        sys.exit(f"FAIL: finished in {elapsed:.1f}s, under the {TIMEOUT}s timeout, so the hung client "
+                 "was never part of a round.")
+    # Both trainers add 2 to every weight, so whichever of them answer, a round moves the weights by 2.
+    # Two rounds from 0 give 4; anything else means a round was lost or the hung client was counted.
     if rounds_done == ROUNDS and all(np.allclose(v, 4.0) for v in model.values()):
-        print("OK: the hung client was dropped and the other two trained both rounds.")
+        print(f"OK: the server waited {TIMEOUT}s for the hung client, dropped it, and finished both "
+              "rounds with the other two.")
     else:
         sys.exit("FAIL: unexpected model values; see the server output above.")
 

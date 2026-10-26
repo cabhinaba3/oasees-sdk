@@ -14,19 +14,23 @@ python examples/fl-stalled-client/run.py
 ```
 
 The script writes the server that oasees-sdk generates to a temporary folder, starts it with a 5
-second round timeout, and starts three clients: two that train and one that never answers. Expected
-output:
+second round timeout, and starts three clients: first the one that never answers, then two that
+train. Expected output:
 
 ```
-Server finished in 6.4s with exit code 0, 2 of 2 rounds trained
+Server finished in 5.8s with exit code 0, 2 of 2 rounds trained
 Saved model .../example.safetensors: p0 (2, 2) = 4, p1 (3,) = 4
-OK: the hung client was dropped and the other two trained both rounds.
+OK: the server waited 5s for the hung client, dropped it, and finished both rounds with the other two.
 ```
 
-The "training" is a stand-in: each client adds the mean of its data (1.0 or 3.0) to every weight.
-The server averages the two answers each round, so after two rounds every weight is 4. Any other
-value would mean a round was missed or the hung client was counted. The script exits with 1 and
-says what went wrong if the result is not this one.
+The hung client has to connect first. The server starts a round as soon as two clients are there,
+so a hung client that connected last could miss every round and nothing would be tested. The script
+checks this: a run shorter than the timeout means the server never waited for the hung client, and
+it fails with that message.
+
+The "training" is a stand-in: each training client adds 2 to every weight, so every completed round
+moves the weights by 2 and two rounds give 4. Any other value means a round was lost or the hung
+client was counted. The script exits with 1 and says what went wrong if the result is not this one.
 
 ## On a K3s cluster
 
