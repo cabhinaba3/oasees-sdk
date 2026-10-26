@@ -372,6 +372,8 @@ spec:
        value: "{source_endpoint}"
      - name: SCRAPE_INTERVAL
        value: "{scrape_interval}"
+     - name: PYTHONUNBUFFERED   # show log lines as they happen, not in batches
+       value: "1"
    volumeMounts:
    - name: script-volume
      mountPath: /app

@@ -67,3 +67,9 @@ def test_node_selector_still_normalises_the_old_way():
     _, pod = _deploy(source="Device_4")
     assert pod["spec"]["nodeSelector"] == {"kubernetes.io/hostname": "device-4"}
     assert pod["metadata"]["name"].startswith("collector-device-4-")
+
+
+def test_collector_logs_are_not_buffered():
+    _, pod = _deploy()
+    env = {e["name"]: e["value"] for e in _container(pod)["env"]}
+    assert env["PYTHONUNBUFFERED"] == "1"
